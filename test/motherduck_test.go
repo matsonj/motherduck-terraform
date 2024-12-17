@@ -54,6 +54,10 @@ func TestMotherDuckTerraform(t *testing.T) {
 	verifyUserExists(t, token, userName)
 	verifyTokenExists(t, token, userName, tokenName)
 	verifyShareAttached(t, token, shareName)
+
+	// Verify sample data tables exist
+	tables := []string{"customer", "lineitem", "nation", "orders", "part", "partsupp", "region", "supplier"}
+	verifyTablesExist(t, token, shareName, tables)
 }
 
 func runCommand(t *testing.T, command string) string {
@@ -150,4 +154,15 @@ func verifyShareAttached(t *testing.T, token, shareName string) {
 
 	result := runCommand(t, cmd)
 	assert.Contains(t, result, shareName, "Share should be attached")
+}
+
+func verifyTablesExist(t *testing.T, token, shareName string, tables []string) {
+	for _, table := range tables {
+		cmd := fmt.Sprintf(`duckdb md:?motherduck_token=%s -c "
+			SELECT table_name FROM %s.information_schema.tables WHERE table_name = '%s';"`,
+			token, shareName, table)
+
+		result := runCommand(t, cmd)
+		assert.Contains(t, result, table, fmt.Sprintf("Table '%s' should exist", table))
+	}
 }
