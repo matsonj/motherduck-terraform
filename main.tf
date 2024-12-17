@@ -67,6 +67,8 @@ resource "null_resource" "user" {
     motherduck_token = var.motherduck_token
   }
 
+  depends_on = [null_resource.database]
+
   provisioner "local-exec" {
     command = <<-EOT
       curl -L "https://api.motherduck.com/v1/users" \
@@ -137,11 +139,13 @@ resource "null_resource" "token" {
   }
 }
 
-# Resource to attach a share
-resource "null_resource" "share" {
+# Resource to attach shares
+resource "null_resource" "shares" {
+  count = length(var.share_urls)
+
   triggers = {
-    share_url        = var.share_url
-    share_name       = var.share_name
+    share_url        = var.share_urls[count.index]
+    share_name       = var.share_names[count.index]
     motherduck_token = var.motherduck_token
   }
 
@@ -150,7 +154,7 @@ resource "null_resource" "share" {
   provisioner "local-exec" {
     command = <<-EOT
       duckdb md:?motherduck_token=${var.motherduck_token} -c "
-        ATTACH '${var.share_url}' AS ${var.share_name};"
+        ATTACH '${var.share_urls[count.index]}' AS ${var.share_names[count.index]};"
     EOT
   }
 

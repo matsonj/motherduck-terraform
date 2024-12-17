@@ -40,8 +40,8 @@ func TestMotherDuckTerraform(t *testing.T) {
 			"new_user_name":      userName,
 			"token_name":         tokenName,
 			"token_expiry_days":  7,
-			"share_url":          shareUrl,
-			"share_name":         shareName,
+			"share_urls":         fmt.Sprintf("[\"%s\"]", shareUrl),
+			"share_names":        fmt.Sprintf("[\"%s\"]", shareName),
 		},
 	})
 
