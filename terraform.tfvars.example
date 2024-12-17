@@ -1,7 +1,6 @@
 motherduck_token   = "your-token-here"
 database_name     = "my_database"
-schema_name       = "my_schema"     # Optional, defaults to "public"
-new_user_email    = "user@example.com"
-new_user_name     = "John Doe"
+schema_name       = "my_schema"     # Optional, defaults to "main"
+new_user_name     = "test_user"
 token_name        = "terraform-managed-token"
-token_expiry_days = 30              # Optional, defaults to 30
+token_expiry_days = 30               # Optional, defaults to 30

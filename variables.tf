@@ -20,12 +20,7 @@ variable "database_name" {
 variable "schema_name" {
   description = "Name of the schema to create"
   type        = string
-  default     = "public"
-}
-
-variable "new_user_email" {
-  description = "Email address for the new user"
-  type        = string
+  default     = "main"
 }
 
 variable "new_user_name" {

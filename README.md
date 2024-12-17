@@ -40,3 +40,27 @@ This repository contains Terraform configurations for managing MotherDuck resour
 - Never commit sensitive information like API keys to version control
 - Use environment variables for sensitive values
 - The `sensitive = true` flag is set for sensitive variables
+
+## Testing
+
+The repository includes integration tests written in Go. The tests verify the creation and cleanup of MotherDuck resources including databases, schemas, users, and tokens.
+
+### Running Tests
+
+1. Ensure you have Go installed and your MotherDuck token is set:
+   ```bash
+   export MOTHERDUCK_TOKEN="your-token"
+   ```
+
+2. Run the tests:
+   ```bash
+   cd test
+   go test -v ./...
+   ```
+
+### Test Behavior
+
+- Tests will skip user and token verification if you don't have admin permissions
+- Tests will fail if the MotherDuck token is invalid
+- Each test run creates unique resources with timestamps to avoid conflicts
+- All resources are automatically cleaned up after tests complete
