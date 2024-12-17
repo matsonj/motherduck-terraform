@@ -136,3 +136,30 @@ resource "null_resource" "token" {
     EOT
   }
 }
+
+# Resource to attach a share
+resource "null_resource" "share" {
+  triggers = {
+    share_url        = var.share_url
+    share_name       = var.share_name
+    motherduck_token = var.motherduck_token
+  }
+
+  depends_on = [null_resource.database]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      duckdb md:?motherduck_token=${var.motherduck_token} -c "
+        ATTACH '${var.share_url}' AS ${var.share_name};"
+    EOT
+  }
+
+  # Destroy-time provisioner to detach the share
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      duckdb md:?motherduck_token=${self.triggers.motherduck_token} -c "
+        DETACH ${self.triggers.share_name};"
+    EOT
+  }
+}

@@ -38,3 +38,13 @@ variable "token_expiry_days" {
   type        = number
   default     = 30
 }
+
+variable "share_url" {
+  description = "URL of the share to attach (e.g., 'md:_share/sample_data/23b0d623-1361-421d-ae77-62d701d471e6')"
+  type        = string
+}
+
+variable "share_name" {
+  description = "Name to use when attaching the share (e.g., 'sample_data')"
+  type        = string
+}

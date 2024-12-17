@@ -4,3 +4,5 @@ schema_name       = "my_schema"     # Optional, defaults to "main"
 new_user_name     = "test_user"
 token_name        = "terraform-managed-token"
 token_expiry_days = 30               # Optional, defaults to 30
+share_url         = "md:_share/sample_data/23b0d623-1361-421d-ae77-62d701d471e6"
+share_name        = "sample_data"
