@@ -48,3 +48,9 @@ variable "share_names" {
   description = "List of names to give to the attached shares. Must be same length as share_urls"
   type        = list(string)
 }
+
+variable "database_schema_file" {
+  description = "Database file that has the base schema of the database to be created"
+  type        = string
+  default     = "tpch0001.ddb"
+}

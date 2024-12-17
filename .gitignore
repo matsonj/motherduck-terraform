@@ -29,3 +29,4 @@ terraform.rc
 # Ignore some test files
 *_id.txt
 *_response.json
+user_token.txt
