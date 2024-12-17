@@ -7,67 +7,12 @@ terraform {
 # TODO: Add MotherDuck provider configuration once officially available
 # For now, you can use local-exec provisioners or other providers as needed
 
-# Resource to create a database
-resource "null_resource" "database" {
-  triggers = {
-    database_name    = var.database_name
-    motherduck_token = var.motherduck_token
-  }
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      duckdb md:?motherduck_token=${var.motherduck_token} -c "
-        CREATE DATABASE IF NOT EXISTS ${var.database_name};"
-    EOT
-  }
-
-  # Destroy-time provisioner to clean up the database
-  provisioner "local-exec" {
-    when    = destroy
-    command = <<-EOT
-      duckdb md:?motherduck_token=${self.triggers.motherduck_token} -c "
-        DROP DATABASE IF EXISTS ${self.triggers.database_name} CASCADE;"
-    EOT
-  }
-}
-
-# Resource to create a schema
-resource "null_resource" "schema" {
-  triggers = {
-    database_name    = var.database_name
-    schema_name      = var.schema_name
-    motherduck_token = var.motherduck_token
-  }
-
-  depends_on = [null_resource.database]
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      duckdb md:?motherduck_token=${var.motherduck_token} -c "
-        USE ${var.database_name};
-        CREATE SCHEMA IF NOT EXISTS ${var.schema_name};"
-    EOT
-  }
-
-  # Destroy-time provisioner to clean up the schema
-  provisioner "local-exec" {
-    when    = destroy
-    command = <<-EOT
-      duckdb md:?motherduck_token=${self.triggers.motherduck_token} -c "
-        USE ${self.triggers.database_name};
-        DROP SCHEMA IF EXISTS ${self.triggers.schema_name} CASCADE;"
-    EOT
-  }
-}
-
 # Resource to create a user
 resource "null_resource" "user" {
   triggers = {
     username         = var.new_user_name
     motherduck_token = var.motherduck_token
   }
-
-  depends_on = [null_resource.database]
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -92,6 +37,73 @@ resource "null_resource" "user" {
       curl -X DELETE "https://api.motherduck.com/api/v0/organizations/self/users/$USER_ID" \
         -H "Accept: application/json" \
         -H "Authorization: Bearer ${self.triggers.motherduck_token}"
+    EOT
+  }
+}
+
+# Resource to create a database
+resource "null_resource" "database" {
+  triggers = {
+    database_name    = var.database_name
+    motherduck_token = var.motherduck_token
+    database_schema_file = var.database_schema_file
+  }
+
+  depends_on = [null_resource.user]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      USER_TOKEN=$(cat user_token.txt)
+      motherduck_token=$USER_TOKEN
+      duckdb "md:" -c "
+        CREATE DATABASE IF NOT EXISTS ${var.database_name};
+        ATTACH '${var.database_schema_file}' as _schemadb;
+        COPY FROM DATABASE _schemadb TO ${var.database_name} (SCHEMA);
+      "
+    EOT
+  }
+
+  # Destroy-time provisioner to clean up the database
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      USER_TOKEN=$(cat user_token.txt)
+      motherduck_token=$USER_TOKEN
+      duckdb "md:" -c "
+        DROP DATABASE IF EXISTS ${self.triggers.database_name} CASCADE;"
+    EOT
+  }
+}
+
+# Resource to create a schema
+resource "null_resource" "schema" {
+  triggers = {
+    database_name    = var.database_name
+    schema_name      = var.schema_name
+    motherduck_token = var.motherduck_token
+  }
+
+  depends_on = [null_resource.database]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      USER_TOKEN=$(cat user_token.txt)
+      motherduck_token=$USER_TOKEN
+      duckdb "md:" -c "
+        USE ${var.database_name};
+        CREATE SCHEMA IF NOT EXISTS ${var.schema_name};"
+    EOT
+  }
+
+  # Destroy-time provisioner to clean up the schema
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      USER_TOKEN=$(cat user_token.txt)
+      motherduck_token=$USER_TOKEN
+      duckdb "md:" -c "
+        USE ${self.triggers.database_name};
+        DROP SCHEMA IF EXISTS ${self.triggers.schema_name} CASCADE;"
     EOT
   }
 }
@@ -123,6 +135,7 @@ resource "null_resource" "token" {
 
       # Store the token ID for cleanup
       echo $(cat token_response.json | jq -r '.id') > token_id.txt
+      cat token_response.json | jq -r '.token' > user_token.txt
     EOT
   }
 
@@ -153,7 +166,9 @@ resource "null_resource" "shares" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      duckdb md:?motherduck_token=${var.motherduck_token} -c "
+      USER_TOKEN=$(cat user_token.txt)
+      motherduck_token=$USER_TOKEN
+      duckdb "md:" -c "
         ATTACH '${var.share_urls[count.index]}' AS ${var.share_names[count.index]};"
     EOT
   }
@@ -162,7 +177,9 @@ resource "null_resource" "shares" {
   provisioner "local-exec" {
     when    = destroy
     command = <<-EOT
-      duckdb md:?motherduck_token=${self.triggers.motherduck_token} -c "
+      USER_TOKEN=$(cat user_token.txt)
+      motherduck_token=$USER_TOKEN
+      duckdb "md:" -c "
         DETACH ${self.triggers.share_name};"
     EOT
   }
