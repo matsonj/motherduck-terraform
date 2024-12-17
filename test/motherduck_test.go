@@ -33,15 +33,16 @@ func TestMotherDuckTerraform(t *testing.T) {
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir: "../",
 		Vars: map[string]interface{}{
-			"motherduck_token":   motherDuckToken,
-			"motherduck_api_key": motherDuckToken,
-			"database_name":      dbName,
-			"schema_name":        schemaName,
-			"new_user_name":      userName,
-			"token_name":         tokenName,
-			"token_expiry_days":  7,
-			"share_urls":         fmt.Sprintf("[\"%s\"]", shareUrl),
-			"share_names":        fmt.Sprintf("[\"%s\"]", shareName),
+			"motherduck_token":     motherDuckToken,
+			"motherduck_api_key":   motherDuckToken,
+			"database_name":        dbName,
+			"schema_name":          schemaName,
+			"new_user_name":        userName,
+			"token_name":           tokenName,
+			"token_expiry_days":    7,
+			"share_urls":           fmt.Sprintf("[\"%s\"]", shareUrl),
+			"share_names":          fmt.Sprintf("[\"%s\"]", shareName),
+			"database_schema_file": "tpch0001.ddb",
 		},
 	})
 
@@ -54,6 +55,9 @@ func TestMotherDuckTerraform(t *testing.T) {
 	verifyUserExists(t, token, userName)
 	verifyTokenExists(t, token, userName, tokenName)
 	verifyShareAttached(t, token, shareName)
+	// Verify tables exist
+	tables := []string{"customer", "lineitem", "nation", "orders", "part", "partsupp", "region", "supplier"}
+	verifyTablesExist(t, motherDuckToken, dbName, tables)
 }
 
 func runCommand(t *testing.T, command string) string {
@@ -139,6 +143,18 @@ func verifyTokenExists(t *testing.T, token, username, tokenName string) {
 
 	result := runCommand(t, cmd)
 	assert.Contains(t, result, tokenName, "Token should exist")
+
+}
+
+func verifyTablesExist(t *testing.T, token, dbName string, tables []string) {
+	for _, table := range tables {
+		cmd := fmt.Sprintf(`duckdb md:?motherduck_token=%s -c "
+			SELECT table_name FROM md:%s.information_schema WHERE table_name = '%s';"`,
+			token, dbName, table)
+
+		result := runCommand(t, cmd)
+		assert.Contains(t, result, table, "Table should exist")
+	}
 }
 
 func verifyShareAttached(t *testing.T, token, shareName string) {

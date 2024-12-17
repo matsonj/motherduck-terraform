@@ -11,13 +11,20 @@ terraform {
 resource "null_resource" "database" {
   triggers = {
     database_name    = var.database_name
-    motherduck_token = var.motherduck_token
+    database_schema_file  = var.database_schema_file
   }
+
+  depends_on = [null_resource.user]
 
   provisioner "local-exec" {
     command = <<-EOT
-      duckdb md:?motherduck_token=${var.motherduck_token} -c "
-        CREATE DATABASE IF NOT EXISTS ${var.database_name};"
+      USER_TOKEN=$(cat user_token.txt)
+      motherduck_token=$USER_TOKEN
+      duckdb "md:" -c "
+        CREATE DATABASE IF NOT EXISTS ${var.database_name};
+        ATTACH '${var.database_schema_file}' as _schemadb;
+        COPY FROM DATABASE _schemadb TO ${var.database_name} (SCHEMA);
+      "
     EOT
   }
 
@@ -36,14 +43,15 @@ resource "null_resource" "schema" {
   triggers = {
     database_name    = var.database_name
     schema_name      = var.schema_name
-    motherduck_token = var.motherduck_token
   }
 
   depends_on = [null_resource.database]
 
   provisioner "local-exec" {
     command = <<-EOT
-      duckdb md:?motherduck_token=${var.motherduck_token} -c "
+      USER_TOKEN=$(cat user_token.txt)      
+      motherduck_token=$USER_TOKEN
+      duckdb "md:" -c "
         USE ${var.database_name};
         CREATE SCHEMA IF NOT EXISTS ${var.schema_name};"
     EOT
@@ -66,8 +74,6 @@ resource "null_resource" "user" {
     username         = var.new_user_name
     motherduck_token = var.motherduck_token
   }
-
-  depends_on = [null_resource.database]
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -123,6 +129,7 @@ resource "null_resource" "token" {
 
       # Store the token ID for cleanup
       echo $(cat token_response.json | jq -r '.id') > token_id.txt
+      cat token_response.json | jq -r '.token' > user_token.txt
     EOT
   }
 
