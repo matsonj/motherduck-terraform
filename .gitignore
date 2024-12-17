@@ -25,3 +25,7 @@ terraform.rc
 
 # Ignore .env files which might contain sensitive data
 .env
+
+# Ignore some test files
+*_id.txt
+*_response.json

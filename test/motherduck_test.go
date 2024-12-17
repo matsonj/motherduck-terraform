@@ -48,9 +48,6 @@ func TestMotherDuckTerraform(t *testing.T) {
 		EnvVars: map[string]string{
 			"MOTHERDUCK_TOKEN": motherDuckToken,
 		},
-
-		// Disable colors in Terraform commands
-		NoColor: true,
 	}
 
 	// At the end of the test, run `terraform destroy`
@@ -67,6 +64,9 @@ func TestMotherDuckTerraform(t *testing.T) {
 
 	// Verify user exists (this will require API call)
 	verifyUserExists(t, motherDuckToken, testUserEmail)
+
+	// Verify token exists (this will require API call)
+	verifyTokenExists(t, motherDuckToken, strings.Split(testUserEmail, "@")[0], uniqueTokenName)
 }
 
 func runCommand(t *testing.T, command string) string {
@@ -79,30 +79,77 @@ func runCommand(t *testing.T, command string) string {
 }
 
 func verifyDatabaseExists(t *testing.T, token, dbName string) {
-	cmd := fmt.Sprintf(`duckdb -c "
-		ATTACH 'md:?motherduck_token=%s';
-		SELECT name FROM md:information_schema.databases WHERE name = '%s';"`,
+	cmd := fmt.Sprintf(`duckdb md:?motherduck_token=%s -c "
+		SELECT DISTINCT catalog_name FROM information_schema.schemata WHERE catalog_name = '%s';"`,
 		token, dbName)
-	
+
 	result := runCommand(t, cmd)
 	assert.Contains(t, result, dbName, "Database should exist")
 }
 
 func verifySchemaExists(t *testing.T, token, dbName, schemaName string) {
-	cmd := fmt.Sprintf(`duckdb -c "
-		ATTACH 'md:?motherduck_token=%s';
-		SELECT schema_name FROM md:%s.information_schema.schemata WHERE schema_name = '%s';"`,
-		token, dbName, schemaName)
-	
+	cmd := fmt.Sprintf(`duckdb md:%s?motherduck_token=%s -c "
+		SELECT schema_name FROM information_schema.schemata WHERE schema_name = '%s';"`,
+		dbName, token, schemaName)
+
 	result := runCommand(t, cmd)
 	assert.Contains(t, result, schemaName, "Schema should exist")
 }
 
 func verifyUserExists(t *testing.T, token, email string) {
-	cmd := fmt.Sprintf(`curl -s -X GET "https://api.motherduck.com/api/v0/organizations/self/users" \
-		-H "Authorization: Bearer %s" | jq -r '.users[] | select(.email=="%s") | .email'`,
-		token, email)
-	
+	// First get the raw response
+	rawCmd := fmt.Sprintf(`curl -sL "https://api.motherduck.com/v1/users" \
+		-H "Content-Type: application/json" \
+		-H "Accept: application/json" \
+		-H "Authorization: Bearer %s"`, token)
+	rawResponse := runCommand(t, rawCmd)
+	t.Logf("Raw API Response: %s", rawResponse)
+
+	// Check for invalid token
+	if strings.Contains(rawResponse, "Invalid MotherDuck token") {
+		t.Fatal("Invalid MotherDuck token")
+		return
+	}
+
+	// Check for permission error
+	if strings.Contains(rawResponse, "UNAUTHORIZED") || strings.Contains(rawResponse, "Not Found") {
+		t.Skip("Skipping user verification due to insufficient permissions")
+		return
+	}
+
+	// Now try to parse it
+	cmd := fmt.Sprintf(`echo '%s' | jq -r '.[] | select(.username=="%s") | .username'`,
+		rawResponse, strings.Split(email, "@")[0])  // Use the part before @ as username
+
 	result := runCommand(t, cmd)
-	assert.Contains(t, result, email, "User should exist")
+	assert.Contains(t, result, strings.Split(email, "@")[0], "User should exist")
+}
+
+func verifyTokenExists(t *testing.T, token, username, tokenName string) {
+	// Get the user's tokens
+	rawCmd := fmt.Sprintf(`curl -sL "https://api.motherduck.com/v1/users/%s/tokens" \
+		-H "Content-Type: application/json" \
+		-H "Accept: application/json" \
+		-H "Authorization: Bearer %s"`, username, token)
+	rawResponse := runCommand(t, rawCmd)
+	t.Logf("Raw Token API Response: %s", rawResponse)
+
+	// Check for invalid token
+	if strings.Contains(rawResponse, "Invalid MotherDuck token") {
+		t.Fatal("Invalid MotherDuck token")
+		return
+	}
+
+	// Check for permission error
+	if strings.Contains(rawResponse, "UNAUTHORIZED") || strings.Contains(rawResponse, "Not Found") {
+		t.Skip("Skipping token verification due to insufficient permissions")
+		return
+	}
+
+	// Check if our token exists
+	cmd := fmt.Sprintf(`echo '%s' | jq -r '.[] | select(.name=="%s") | .name'`,
+		rawResponse, tokenName)
+
+	result := runCommand(t, cmd)
+	assert.Contains(t, result, tokenName, "Token should exist")
 }

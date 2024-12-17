@@ -16,10 +16,8 @@ resource "null_resource" "database" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      duckdb -c "
-        ATTACH 'md:?motherduck_token=${var.motherduck_token}';
-        CREATE DATABASE IF NOT EXISTS ${var.database_name};
-      "
+      duckdb md:?motherduck_token=${var.motherduck_token} -c "
+        CREATE DATABASE IF NOT EXISTS ${var.database_name};"
     EOT
   }
 
@@ -27,10 +25,8 @@ resource "null_resource" "database" {
   provisioner "local-exec" {
     when    = destroy
     command = <<-EOT
-      duckdb -c "
-        ATTACH 'md:?motherduck_token=${self.triggers.motherduck_token}';
-        DROP DATABASE IF EXISTS ${self.triggers.database_name} CASCADE;
-      "
+      duckdb md:?motherduck_token=${self.triggers.motherduck_token} -c "
+        DROP DATABASE IF EXISTS ${self.triggers.database_name} CASCADE;"
     EOT
   }
 }
@@ -47,10 +43,9 @@ resource "null_resource" "schema" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      duckdb -c "
-        ATTACH 'md:?motherduck_token=${var.motherduck_token}';
-        CREATE SCHEMA IF NOT EXISTS ${var.database_name}.${var.schema_name};
-      "
+      duckdb md:?motherduck_token=${var.motherduck_token} -c "
+        USE ${var.database_name};
+        CREATE SCHEMA IF NOT EXISTS ${var.schema_name};"
     EOT
   }
 
@@ -58,10 +53,9 @@ resource "null_resource" "schema" {
   provisioner "local-exec" {
     when    = destroy
     command = <<-EOT
-      duckdb -c "
-        ATTACH 'md:?motherduck_token=${self.triggers.motherduck_token}';
-        DROP SCHEMA IF EXISTS ${self.triggers.database_name}.${self.triggers.schema_name} CASCADE;
-      "
+      duckdb md:?motherduck_token=${self.triggers.motherduck_token} -c "
+        USE ${self.triggers.database_name};
+        DROP SCHEMA IF EXISTS ${self.triggers.schema_name} CASCADE;"
     EOT
   }
 }
@@ -69,19 +63,18 @@ resource "null_resource" "schema" {
 # Resource to create a user
 resource "null_resource" "user" {
   triggers = {
-    email            = var.new_user_email
-    name             = var.new_user_name
+    username         = var.new_user_name
     motherduck_token = var.motherduck_token
   }
 
   provisioner "local-exec" {
     command = <<-EOT
-      curl -X POST "https://api.motherduck.com/api/v0/organizations/self/users" \
-        -H "Authorization: Bearer ${var.motherduck_token}" \
+      curl -L "https://api.motherduck.com/v1/users" \
         -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        -H "Authorization: Bearer ${var.motherduck_token}" \
         -d '{
-          "email": "${var.new_user_email}",
-          "name": "${var.new_user_name}"
+          "username": "${var.new_user_name}"
         }' > user_response.json
 
       # Store the user ID for token creation
@@ -93,8 +86,9 @@ resource "null_resource" "user" {
   provisioner "local-exec" {
     when    = destroy
     command = <<-EOT
-      USER_ID=$(cat user_id.txt)
+      USER_ID=$(cat user_response.json | jq -r '.id')
       curl -X DELETE "https://api.motherduck.com/api/v0/organizations/self/users/$USER_ID" \
+        -H "Accept: application/json" \
         -H "Authorization: Bearer ${self.triggers.motherduck_token}"
     EOT
   }
@@ -103,24 +97,26 @@ resource "null_resource" "user" {
 # Resource to create a token
 resource "null_resource" "token" {
   triggers = {
-    motherduck_token = var.motherduck_token
     token_name       = var.token_name
     expiry_days      = var.token_expiry_days
+    motherduck_token = var.motherduck_token
   }
 
   depends_on = [null_resource.user]
 
   provisioner "local-exec" {
     command = <<-EOT
-      USER_ID=$(cat user_id.txt)
+      USER_ID=$(cat user_response.json | jq -r '.username')
       EXPIRY_DATE=$(date -v +${var.token_expiry_days}d -u +"%Y-%m-%dT%H:%M:%SZ")
       
-      curl -X POST "https://api.motherduck.com/api/v0/organizations/self/users/$USER_ID/tokens" \
-        -H "Authorization: Bearer ${var.motherduck_token}" \
+      curl -L "https://api.motherduck.com/v1/users/$USER_ID/tokens" \
         -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        -H "Authorization: Bearer ${var.motherduck_token}" \
         -d '{
           "name": "${var.token_name}",
-          "expiresAt": "'$EXPIRY_DATE'"
+          "ttl": ${var.token_expiry_days * 24 * 60 * 60},
+          "token_type": "read_write"
         }' > token_response.json
 
       # Store the token ID for cleanup
@@ -132,9 +128,10 @@ resource "null_resource" "token" {
   provisioner "local-exec" {
     when    = destroy
     command = <<-EOT
-      USER_ID=$(cat user_id.txt)
+      USER_ID=$(cat user_response.json | jq -r '.username')
       TOKEN_ID=$(cat token_id.txt)
-      curl -X DELETE "https://api.motherduck.com/api/v0/organizations/self/users/$USER_ID/tokens/$TOKEN_ID" \
+      curl -L -X DELETE "https://api.motherduck.com/v1/users/$USER_ID/tokens/$TOKEN_ID" \
+        -H "Accept: application/json" \
         -H "Authorization: Bearer ${self.triggers.motherduck_token}"
     EOT
   }
