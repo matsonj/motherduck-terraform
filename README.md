@@ -3,7 +3,7 @@
 This repository contains Terraform configurations for managing MotherDuck resources.
 
 > [!NOTE]  
-> This repo serves as a demonstration of the capabilities of the MotherDuck REST API. Feel to use it as inspiration, but Production use is not recommended.
+> This repo serves as a demonstration of the capabilities of the MotherDuck REST API. Feel free to use it as inspiration, but Production use is not recommended.
 
 ## Prerequisites
 
