@@ -1,9 +1,14 @@
 # MotherDuck Terraform Configuration
 
+> [!IMPORTANT]
+> **This repository is superseded.** The official, supported Terraform provider for MotherDuck now lives at
+> **https://github.com/motherduckdb/terraform-provider-motherduck**.
+> This repo is kept for historical reference only and is no longer maintained. Please use the canonical provider for all new work.
+
 This repository contains Terraform configurations for managing MotherDuck resources.
 
 > [!NOTE]  
-> This repo serves as a demonstration of the capabilities of the MotherDuck REST API. Feel free to use it as inspiration, but Production use is not recommended.
+> This repo served as an early demonstration of the capabilities of the MotherDuck REST API. Feel free to use it as inspiration, but Production use is not recommended.
 
 ## Prerequisites
 
